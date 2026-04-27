@@ -10,26 +10,19 @@ const { syncGoogleSheet } = require('./utils/googleSheets');
 dotenv.config();
 
 const app = express();
-const isProduction = process.env.NODE_ENV === 'production';
 
 // ✅ FIXED PATH
 const clientDistPath = path.join(process.cwd(), 'client', 'dist');
 const hasClientBuild = fs.existsSync(path.join(clientDistPath, 'index.html'));
 
-const allowedOrigins = [process.env.CLIENT_URL].filter(Boolean);
-
 // Connect Database
 connectDB();
 
-// Middleware
+// ================= MIDDLEWARE =================
+
+// ✅ SIMPLE CORS FIX (IMPORTANT)
 app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin) return cb(null, true);
-    if (!isProduction || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
-      return cb(null, true);
-    }
-    return cb(new Error('Not allowed by CORS'));
-  },
+  origin: true,
   credentials: true
 }));
 
@@ -39,7 +32,16 @@ app.use(express.urlencoded({ extended: true }));
 // Serve uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// ================= STATIC (VERY IMPORTANT ORDER) =================
+
+// ✅ Serve static FIRST (CSS/JS fix)
+if (hasClientBuild) {
+  console.log("Serving frontend from:", clientDistPath);
+  app.use(express.static(clientDistPath));
+}
+
 // ================= API ROUTES =================
+
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/leads', require('./routes/leads'));
 app.use('/api/followups', require('./routes/followups'));
@@ -57,6 +59,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // ================= CRON =================
+
 const hasGoogleSheetConfig = Boolean(
   process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL &&
   process.env.GOOGLE_PRIVATE_KEY &&
@@ -79,28 +82,22 @@ if (hasGoogleSheetConfig) {
   console.log('Google Sheets sync disabled');
 }
 
-// ================= FRONTEND SERVING FIX =================
+// ================= FRONTEND FALLBACK =================
+
+// ✅ SPA FIX (VERY IMPORTANT)
 if (hasClientBuild) {
-  console.log("Serving frontend from:", clientDistPath);
-
-  // ✅ Serve static files FIRST
-  app.use(express.static(clientDistPath));
-
-  // ✅ SPA fallback (VERY IMPORTANT FIX)
   app.get('*', (req, res) => {
-    // API & uploads ko skip karo
     if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
       return res.status(404).end();
     }
-
     res.sendFile(path.join(clientDistPath, 'index.html'));
   });
 }
 
 // ================= SERVER =================
+
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 });
