@@ -11,7 +11,7 @@ dotenv.config();
 
 const app = express();
 const isProduction = process.env.NODE_ENV === 'production';
-const clientDistPath = path.resolve(__dirname, '../client/dist');
+const clientDistPath = path.join(process.cwd(), 'client', 'dist');
 const hasClientBuild = fs.existsSync(path.join(clientDistPath, 'index.html'));
 const allowedOrigins = [process.env.CLIENT_URL].filter(Boolean);
 
